@@ -3,57 +3,50 @@
   "version": "1.1.0",
   "description": "Lightweight, framework-agnostic SEO meta tag generator. One call covers <title>, Open Graph, Twitter Card, JSON-LD, and PWA hints.",
   "keywords": [
-    "seo",
-    "meta",
-    "meta-tags",
-    "open-graph",
-    "twitter-card",
-    "json-ld",
-    "structured-data",
-    "spa",
-    "ssr"
+    "seo", "meta", "meta-tags", "open-graph", "twitter-card", "json-ld", "structured-data", "spa", "ssr"
   ],
   "homepage": "https://github.com/Ansel-S/Stroma#readme",
   "bugs": "https://github.com/Ansel-S/Stroma/issues",
   "repository": {
     "type": "git",
-    "url": "https://github.com/Ansel-S/Stroma.git"
+    "url": "git+https://github.com/Ansel-S/Stroma.git"
   },
   "license": "MIT",
   "author": "Ansel-S <238927804+Ansel-S@users.noreply.github.com>",
-  "main":    "dist/stroma.umd.js",
-  "module":  "dist/stroma.esm.js",
-  "types":   "dist/stroma.d.ts",
+  "type": "module",
+  "main": "./dist/stroma.cjs",
+  "module": "./dist/stroma.js",
+  "types": "./dist/stroma.d.ts",
   "exports": {
     ".": {
-      "import":  "./dist/stroma.esm.js",
-      "require": "./dist/stroma.umd.js",
-      "types":   "./dist/stroma.d.ts"
+      "types": "./dist/stroma.d.ts",
+      "import": "./dist/stroma.js",
+      "require": "./dist/stroma.cjs"
     }
   },
   "files": [
     "dist",
-    "src",
-    "README.md",
-    "LICENSE"
+    "stroma.js",
+    "stroma.d.ts"
   ],
   "scripts": {
-    "build":    "tsup src/index.js --format esm,cjs --dts --minify --out-dir dist",
-    "dev":      "tsup src/index.js --format esm,cjs --watch",
-    "test":     "vitest run",
-    "test:ui":  "vitest --ui",
-    "typecheck":"tsc --noEmit",
-    "prepublishOnly": "npm run build && npm test"
+    "build": "tsup stroma.js --format esm,cjs --dts --minify --clean --out-dir dist",
+    "dev": "tsup stroma.js --format esm,cjs --watch --out-dir dist",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "prepublishOnly": "npm run build"
   },
   "devDependencies": {
-    "happy-dom":    "^14.0.0",
-    "tsup":         "^8.0.0",
-    "typescript":   "^5.0.0",
-    "vitest":       "^1.0.0"
+    "happy-dom": "^14.0.0",
+    "tsup": "^8.0.0",
+    "typescript": "^5.0.0",
+    "vitest": "^1.0.0"
   },
   "engines": {
     "node": ">=16"
   },
   "sideEffects": false,
-  "browserslist": "> 0.5%, last 2 versions, not dead"
+  "publishConfig": {
+    "access": "public"
+  }
 }
