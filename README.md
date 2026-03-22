@@ -302,4 +302,4 @@ npm test        # Vitest + happy-dom
 
 ## License
 
-MIT © Your Name
+MIT © Ansel S
