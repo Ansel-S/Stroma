@@ -1,0 +1,1330 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Stroma.js — Interactive Demo</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,500;1,400;1,500&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/*
+ * Design system — all units derived from the golden ratio φ = 1.618034
+ *
+ * Type scale (base 13px × φ):
+ *   10px  →  labels, hints, mono badges
+ *   13px  →  body, form inputs
+ *   21px  →  section heads
+ *   34px  →  hero title
+ *
+ * Spacing scale (Fibonacci px):
+ *   5  8  13  21  34  55  89
+ *
+ * Column split:
+ *   Left  38.2% (minor — input)
+ *   Right 61.8% (major — output)
+ *
+ * Line-height: 1.618 everywhere
+ * Border-radius: 5px base, 8px panels
+ */
+
+/* ── Tokens ─────────────────────────────────────────── */
+:root {
+  /* φ */
+  --phi: 1.618034;
+
+  /* Palette */
+  --bg:      #020804;
+  --bg1:     #060e08;
+  --bg2:     #0b1810;
+  --bg3:     #111f14;
+  --border:  rgba(72,210,140,0.10);
+  --border2: rgba(72,210,140,0.18);
+  --glow:    rgba(72,210,140,0.28);
+  --acc:     #48D28C;
+  --acc2:    #2d8f5e;
+  --tx:      #c4e2d0;
+  --tx2:     #6da882;
+  --tx3:     #3a6648;
+  --amber:   #d4a44a;
+  --red:     #d45a4a;
+  --sky:     #4aabd4;
+  --rose:    #c47aaa;
+
+  /* Fibonacci spacing */
+  --s1: 5px;
+  --s2: 8px;
+  --s3: 13px;
+  --s4: 21px;
+  --s5: 34px;
+  --s6: 55px;
+  --s7: 89px;
+
+  /* Radii */
+  --r1: 5px;
+  --r2: 8px;
+  --r3: 13px;
+
+  /* Type */
+  --f0: 10px;   /* labels */
+  --f1: 13px;   /* body */
+  --f2: 16px;   /* subhead */  /* 13 × 1.236 ≈ closest clean */
+  --f3: 21px;   /* section */
+  --f4: 34px;   /* hero */
+  --lh: 1.618;
+
+  /* Fonts */
+  --mono:  'JetBrains Mono', monospace;
+  --serif: 'EB Garamond', Georgia, serif;
+
+  /* Column widths (golden split of 100%) */
+  --col-minor: 38.2%;
+  --col-major: 61.8%;
+}
+
+/* ── Reset ──────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { height: 100%; }
+body {
+  background: var(--bg);
+  color: var(--tx);
+  font-family: var(--serif);
+  font-size: var(--f1);
+  line-height: var(--lh);
+  height: 100%;
+  overflow: hidden;        /* full-viewport chrome — panels scroll internally */
+}
+::-webkit-scrollbar { width: 3px; height: 3px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--tx3); border-radius: 2px; }
+::-webkit-scrollbar-thumb:hover { background: var(--acc2); }
+
+/* ── Canvas ─────────────────────────────────────────── */
+#bio-canvas {
+  position: fixed; inset: 0; z-index: 0;
+  pointer-events: none; opacity: .35;
+}
+
+/* ── App shell — 3-row grid ─────────────────────────── */
+.app {
+  position: relative; z-index: 1;
+  display: grid;
+  grid-template-rows: auto auto 1fr;  /* topbar · subbar · workspace */
+  height: 100vh;
+}
+
+/* ── Top bar ────────────────────────────────────────── */
+.topbar {
+  display: flex;
+  align-items: center;
+  gap: var(--s4);
+  padding: 0 var(--s5);
+  height: var(--s7);                  /* 89px → Fibonacci */
+  border-bottom: 1px solid var(--border);
+  backdrop-filter: blur(8px);
+  flex-shrink: 0;
+}
+.logo {
+  font-family: var(--serif);
+  font-style: italic;
+  font-size: var(--f3);               /* 21px */
+  font-weight: 500;
+  color: var(--acc);
+  letter-spacing: .02em;
+  text-shadow: 0 0 var(--s4) var(--glow);
+  line-height: 1;
+}
+.ver-pill {
+  font-family: var(--mono);
+  font-size: var(--f0);
+  color: var(--tx3);
+  border: 1px solid var(--border2);
+  padding: 2px var(--s2);
+  border-radius: var(--r1);
+  line-height: var(--lh);
+}
+
+/* hero copy — lives in topbar, collapses gracefully */
+.topbar-copy {
+  margin-left: var(--s5);
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.topbar-title {
+  font-size: var(--f2);
+  font-weight: 400;
+  color: var(--tx);
+  line-height: 1.3;
+}
+.topbar-sub {
+  font-size: var(--f0);
+  font-family: var(--mono);
+  color: var(--tx3);
+  line-height: var(--lh);
+}
+.topbar-badges {
+  margin-left: auto;
+  display: flex;
+  gap: var(--s2);
+  flex-shrink: 0;
+}
+.badge {
+  font-family: var(--mono);
+  font-size: var(--f0);
+  color: var(--tx3);
+  border: 1px solid var(--border);
+  border-radius: var(--r1);
+  padding: 2px var(--s2);
+  white-space: nowrap;
+}
+@media (max-width: 900px) { .topbar-copy { display:none; } }
+@media (max-width: 720px) { .topbar-badges { display:none; } }
+
+/* ── Sub bar — output tab strip ─────────────────────── */
+.subbar {
+  display: grid;
+  grid-template-columns: var(--col-minor) var(--col-major);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.subbar-left {
+  border-right: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  padding: 0 var(--s3);
+  gap: var(--s3);
+}
+.subbar-label {
+  font-family: var(--mono);
+  font-size: var(--f0);
+  color: var(--tx3);
+  text-transform: uppercase;
+  letter-spacing: .1em;
+}
+.live-dot {
+  width: 5px; height: 5px;
+  border-radius: 50%;
+  background: var(--acc);
+  box-shadow: 0 0 5px var(--acc);
+  animation: pulse 3s ease-in-out infinite;
+  flex-shrink: 0;
+}
+@keyframes pulse {
+  0%,100% { opacity: 1; transform: scale(1); }
+  50%      { opacity: .3; transform: scale(.6); }
+}
+.subbar-live {
+  font-family: var(--mono);
+  font-size: var(--f0);
+  color: var(--tx3);
+  display: flex;
+  align-items: center;
+  gap: var(--s1);
+}
+.subbar-right {
+  display: flex;
+}
+.out-tab {
+  padding: 0 var(--s4);
+  height: var(--s5);                  /* 34px */
+  font-family: var(--mono);
+  font-size: var(--f0);
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  color: var(--tx3);
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  transition: color .15s;
+  display: flex;
+  align-items: center;
+}
+.out-tab:hover { color: var(--tx2); }
+.out-tab.active {
+  color: var(--acc);
+  border-bottom-color: var(--acc);
+}
+
+/* ── Workspace — golden split ───────────────────────── */
+.workspace {
+  display: grid;
+  grid-template-columns: var(--col-minor) var(--col-major);
+  overflow: hidden;
+  min-height: 0;                      /* allow children to scroll */
+}
+
+/* ── Left — input panel ─────────────────────────────── */
+.left {
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background: rgba(6,14,8,.72);
+  backdrop-filter: blur(6px);
+}
+
+/* Input tabs */
+.in-tabs {
+  display: flex;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.in-tab {
+  flex: 1;
+  height: var(--s5);
+  font-family: var(--mono);
+  font-size: var(--f0);
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  color: var(--tx3);
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  transition: color .15s;
+}
+.in-tab:hover { color: var(--tx2); }
+.in-tab.active { color: var(--acc); border-bottom-color: var(--acc); }
+
+.tab-body {
+  display: none;
+  padding: var(--s4);
+  overflow-y: auto;
+  flex: 1;
+}
+.tab-body.active { display: block; }
+
+/* ── Form elements ──────────────────────────────────── */
+.field { margin-bottom: var(--s3); }
+.field:last-child { margin-bottom: 0; }
+
+label {
+  display: block;
+  font-family: var(--mono);
+  font-size: var(--f0);
+  text-transform: uppercase;
+  letter-spacing: .09em;
+  color: var(--tx3);
+  margin-bottom: var(--s1);
+  line-height: var(--lh);
+}
+label .req { color: var(--red); }
+
+input[type=text],
+input[type=number],
+textarea,
+select {
+  width: 100%;
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: var(--r2);
+  color: var(--tx);
+  font-family: var(--serif);
+  font-size: var(--f1);
+  line-height: var(--lh);
+  padding: var(--s2) var(--s3);
+  outline: none;
+  transition: border-color .15s, box-shadow .15s;
+  -webkit-appearance: none;
+}
+input:focus, textarea:focus, select:focus {
+  border-color: var(--acc);
+  box-shadow: 0 0 0 2px rgba(72,210,140,.12);
+}
+textarea { resize: vertical; min-height: 68px; }
+select { cursor: pointer; font-family: var(--mono); font-size: 11px; }
+
+.row2 { display: grid; grid-template-columns: 1fr 1fr; gap: var(--s3); }
+
+.char-hint {
+  font-family: var(--mono);
+  font-size: var(--f0);
+  text-align: right;
+  margin-top: var(--s1);
+  line-height: var(--lh);
+}
+.char-hint.ok   { color: var(--acc2); }
+.char-hint.warn { color: var(--amber); }
+.char-hint.over { color: var(--red); }
+
+.sub-fields {
+  display: none;
+  padding-top: var(--s3);
+  margin-top: var(--s3);
+  border-top: 1px solid var(--border);
+}
+.sub-fields.visible { display: block; }
+
+/* field-group label inside tabs */
+.field-group-label {
+  font-family: var(--mono);
+  font-size: var(--f0);
+  text-transform: uppercase;
+  letter-spacing: .1em;
+  color: var(--tx3);
+  margin-bottom: var(--s3);
+  margin-top: var(--s4);
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  opacity: .6;
+}
+.field-group-label::before {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+}
+.field-group-label:first-child { margin-top: 0; }
+
+/* ── Right — output panel ───────────────────────────── */
+.right {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background: rgba(2,8,4,.6);
+  backdrop-filter: blur(4px);
+}
+
+.out-body {
+  display: none;
+  padding: var(--s4);
+  overflow-y: auto;
+  flex: 1;
+}
+.out-body.active { display: block; }
+
+/* ── Vitals strip ───────────────────────────────────── */
+.vitals {
+  display: flex;
+  align-items: center;
+  gap: var(--s4);
+  padding: var(--s2) var(--s3);
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: var(--r2);
+  margin-bottom: var(--s3);
+  flex-wrap: wrap;
+}
+.vital {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  font-family: var(--mono);
+  font-size: var(--f0);
+  color: var(--tx3);
+  line-height: var(--lh);
+}
+.vdot { width: 5px; height: 5px; border-radius: 50%; flex-shrink: 0; }
+.score {
+  margin-left: auto;
+  width: var(--s5); height: var(--s5);  /* 34px × 34px */
+  border-radius: 50%;
+  border: 1.5px solid var(--acc);
+  display: flex; align-items: center; justify-content: center;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--acc);
+  flex-shrink: 0;
+  transition: border-color .3s, color .3s;
+}
+
+/* ── Alerts ─────────────────────────────────────────── */
+.alerts { display: flex; flex-direction: column; gap: var(--s1); margin-bottom: var(--s3); }
+.alert {
+  font-family: var(--mono);
+  font-size: var(--f0);
+  line-height: var(--lh);
+  padding: var(--s2) var(--s3);
+  border-radius: var(--r1);
+  border-left: 2px solid;
+}
+.alert.ok   { background: rgba(72,210,140,.05); border-color: var(--acc);   color: var(--acc2); }
+.alert.warn { background: rgba(212,164,74,.05); border-color: var(--amber); color: var(--amber); }
+.alert.err  { background: rgba(212,90,74,.06);  border-color: var(--red);   color: var(--red); }
+
+/* ── Tag output ─────────────────────────────────────── */
+.stratum { margin-bottom: var(--s4); }
+
+.stratum-label {
+  font-family: var(--mono);
+  font-size: var(--f0);
+  text-transform: uppercase;
+  letter-spacing: .1em;
+  color: var(--tx3);
+  margin-bottom: var(--s2);
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  opacity: .7;
+  line-height: var(--lh);
+}
+.stratum-label::after {
+  content: ''; flex: 1; height: 1px; background: var(--border);
+}
+
+.tag-row {
+  display: grid;
+  grid-template-columns: 148px 1fr;
+  border: 1px solid var(--border);
+  border-radius: var(--r1);
+  overflow: hidden;
+  margin-bottom: 3px;
+  animation: in .2s ease both;
+}
+@keyframes in { from { opacity:0; transform:translateY(3px); } }
+
+.tag-k {
+  font-family: var(--mono);
+  font-size: var(--f0);
+  line-height: var(--lh);
+  padding: var(--s2) var(--s3);
+  background: var(--bg3);
+  border-right: 1px solid var(--border);
+  color: var(--tx3);
+  word-break: break-all;
+  display: flex; align-items: flex-start;
+}
+.tag-k.basic { color: var(--sky); }
+.tag-k.og    { color: var(--rose); }
+.tag-k.tw    { color: var(--sky); }
+.tag-k.jld   { color: var(--acc); }
+
+.tag-v {
+  font-family: var(--mono);
+  font-size: var(--f0);
+  line-height: var(--lh);
+  padding: var(--s2) var(--s3);
+  background: var(--bg2);
+  color: var(--tx);
+  word-break: break-all;
+}
+
+/* JSON-LD block */
+.jld-pre {
+  font-family: var(--mono);
+  font-size: var(--f0);
+  line-height: var(--lh);
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: var(--r2);
+  padding: var(--s3);
+  overflow: auto;
+  max-height: 260px;
+  white-space: pre;
+}
+.jk { color: var(--amber); }
+.jv { color: var(--acc); }
+.jn { color: var(--sky); }
+
+/* ── Preview cards ──────────────────────────────────── */
+.preview-group { margin-bottom: var(--s5); }
+
+.preview-label {
+  font-family: var(--mono);
+  font-size: var(--f0);
+  text-transform: uppercase;
+  letter-spacing: .1em;
+  color: var(--tx3);
+  margin-bottom: var(--s3);
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  opacity: .7;
+}
+.preview-label::after { content:''; flex:1; height:1px; background:var(--border); }
+
+/* Google card */
+.g-card {
+  background: #fff;
+  border-radius: var(--r3);
+  padding: var(--s4) var(--s5);
+  max-width: 560px;
+}
+.g-row {
+  display: flex; align-items: center;
+  gap: var(--s3); margin-bottom: var(--s2);
+}
+.g-icon {
+  width: 26px; height: 26px; border-radius: 50%;
+  background: #f1f3f4;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 11px; color: #777; flex-shrink: 0;
+}
+.g-domain { font: 13px/var(--lh) Arial,sans-serif; color: #202124; }
+.g-title  { font: 19px/1.3 Arial,sans-serif; color: #1a0dab; margin-bottom: var(--s1); cursor: pointer; }
+.g-title:hover { text-decoration: underline; }
+.g-desc   { font: 13.5px/1.58 Arial,sans-serif; color: #4d5156; }
+
+/* Twitter card */
+.tw-card { border: 1px solid #e1e8ed; border-radius: 14px; overflow:hidden; max-width: 460px; background:#fff; }
+.tw-img  {
+  height: 200px;
+  background: linear-gradient(135deg,#1da1f2,#0d4d8f) center/cover no-repeat;
+  display: flex; align-items: center; justify-content: center;
+  color: rgba(255,255,255,.3); font-size: 28px;
+}
+.tw-body { padding: var(--s3) var(--s4); }
+.tw-dom  { font: 12px/var(--lh) Arial,sans-serif; color:#8899a6; text-transform:uppercase; margin-bottom:3px; }
+.tw-ttl  { font: 700 15px/1.3 Arial,sans-serif; color:#14171a; margin-bottom:3px; }
+.tw-dsc  { font: 14px/1.5 Arial,sans-serif; color:#657786; }
+
+/* OG card */
+.og-card { border:1px solid #dddfe2; border-radius:4px; overflow:hidden; max-width:460px; }
+.og-img  {
+  height: 200px;
+  background: linear-gradient(135deg,#4267b2,#6d84b4) center/cover no-repeat;
+  display: flex; align-items: center; justify-content: center;
+  color: rgba(255,255,255,.3); font-size: 28px;
+}
+.og-body { padding: var(--s2) var(--s3); background:#f2f3f5; }
+.og-dom  { font: 11px/var(--lh) Arial,sans-serif; color:#606770; text-transform:uppercase; margin-bottom:3px; }
+.og-ttl  { font: 700 15px/1.3 Arial,sans-serif; color:#1c1e21; margin-bottom:3px; }
+.og-dsc  { font: 13px/1.5 Arial,sans-serif; color:#606770; }
+
+/* ── Code blocks ────────────────────────────────────── */
+.code-section { margin-bottom: var(--s4); }
+.code-section-label {
+  font-family: var(--mono);
+  font-size: var(--f0);
+  text-transform: uppercase;
+  letter-spacing: .1em;
+  color: var(--tx3);
+  margin-bottom: var(--s2);
+  display: flex; align-items: center; gap: var(--s2);
+  opacity: .7;
+}
+.code-section-label::after { content:''; flex:1; height:1px; background:var(--border); }
+
+.code-wrap { position: relative; }
+.copy-btn {
+  position: absolute; top: var(--s2); right: var(--s2);
+  font-family: var(--mono); font-size: var(--f0);
+  background: var(--bg); border: 1px solid var(--border2);
+  color: var(--tx3); border-radius: var(--r1);
+  padding: 2px var(--s2); cursor: pointer;
+  transition: color .12s, border-color .12s;
+  text-transform: uppercase; letter-spacing: .06em;
+  line-height: var(--lh);
+}
+.copy-btn:hover { color: var(--acc); border-color: var(--acc2); }
+
+.code-block {
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: var(--r2);
+  padding: var(--s3) var(--s4);
+  font-family: var(--mono);
+  font-size: var(--f0);
+  line-height: var(--lh);
+  overflow-x: auto;
+  white-space: pre;
+}
+
+/* Syntax tokens */
+.ck  { color: #c792ea; }  /* keyword */
+.ci  { color: var(--acc); } /* identifier */
+.cs  { color: #a8ffd4; }  /* string */
+.cp  { color: var(--rose); } /* property */
+.cc  { color: var(--tx3); } /* comment */
+.cm  { color: var(--tx3); opacity: .7; } /* punctuation */
+.cfn { color: var(--sky); } /* function */
+
+@media (max-width: 860px) {
+  .workspace { grid-template-columns: 1fr; }
+  .subbar    { grid-template-columns: 1fr; }
+  .subbar-left { display: none; }
+  body { overflow: auto; }
+  .app  { height: auto; }
+  .workspace { height: auto; }
+  .left, .right { height: auto; }
+  .tab-body, .out-body { max-height: 60vh; }
+}
+</style>
+</head>
+<body>
+
+<canvas id="bio-canvas"></canvas>
+
+<div class="app">
+
+  <!-- ── Top bar ──────────────────────────────────────── -->
+  <header class="topbar">
+    <span class="logo">Stroma</span>
+    <span class="ver-pill">v1.1.0</span>
+    <div class="topbar-copy">
+      <div class="topbar-title">One call. Every meta tag covered.</div>
+      <div class="topbar-sub">Title · Open Graph · Twitter Card · JSON-LD · PWA — injected live.</div>
+    </div>
+    <nav class="topbar-badges">
+      <span class="badge">No dependencies</span>
+      <span class="badge">SPA + SSR</span>
+      <span class="badge">&lt; 2 KB gz</span>
+      <span class="badge">TypeScript</span>
+    </nav>
+  </header>
+
+  <!-- ── Sub bar ───────────────────────────────────────── -->
+  <div class="subbar">
+    <div class="subbar-left">
+      <span class="subbar-label">Input</span>
+      <span class="subbar-live"><span class="live-dot"></span>live</span>
+    </div>
+    <div class="subbar-right">
+      <button class="out-tab active" data-out="tags">Tags</button>
+      <button class="out-tab" data-out="preview">Preview</button>
+      <button class="out-tab" data-out="code">Code</button>
+    </div>
+  </div>
+
+  <!-- ── Workspace ─────────────────────────────────────── -->
+  <div class="workspace">
+
+    <!-- Left: input ─────────────────────────────────── -->
+    <div class="left">
+      <div class="in-tabs">
+        <button class="in-tab active" data-tab="basic">Basic</button>
+        <button class="in-tab" data-tab="social">Social</button>
+        <button class="in-tab" data-tab="schema">Schema</button>
+      </div>
+
+      <!-- Basic -->
+      <div class="tab-body active" id="tab-basic">
+        <div class="field">
+          <label>title <span class="req">*</span></label>
+          <input type="text" id="f-title" value="Stroma.js — Lightweight SEO Tag Generator" maxlength="80"/>
+          <div class="char-hint ok" id="cc-title"></div>
+        </div>
+        <div class="field">
+          <label>description <span class="req">*</span></label>
+          <textarea id="f-desc" maxlength="250">A zero-dependency JS library that maps your page data into Open Graph, Twitter Card, and JSON-LD tags — in a single call.</textarea>
+          <div class="char-hint ok" id="cc-desc"></div>
+        </div>
+        <div class="field">
+          <label>url</label>
+          <input type="text" id="f-url" placeholder="https://example.com/page"/>
+        </div>
+        <div class="field">
+          <label>image</label>
+          <input type="text" id="f-image" value="https://example.com/stroma-og.png"/>
+        </div>
+        <div class="row2">
+          <div class="field">
+            <label>author</label>
+            <input type="text" id="f-author" placeholder="Jane Doe"/>
+          </div>
+          <div class="field">
+            <label>themeColor</label>
+            <input type="text" id="f-theme" value="#48D28C"/>
+          </div>
+        </div>
+        <div class="field">
+          <label>keywords</label>
+          <input type="text" id="f-kw" value="seo, meta tags, open graph, javascript"/>
+        </div>
+        <div class="row2">
+          <div class="field">
+            <label>siteName</label>
+            <input type="text" id="f-site" value="Stroma Docs"/>
+          </div>
+          <div class="field">
+            <label>robots</label>
+            <select id="f-robots">
+              <option value="index, follow" selected>index, follow</option>
+              <option value="noindex, nofollow">noindex, nofollow</option>
+              <option value="noindex, follow">noindex, follow</option>
+              <option value="index, nofollow">index, nofollow</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <!-- Social -->
+      <div class="tab-body" id="tab-social">
+        <div class="field-group-label">Open Graph</div>
+        <div class="field">
+          <label>ogType</label>
+          <select id="f-ogtype">
+            <option value="website" selected>website</option>
+            <option value="article">article</option>
+            <option value="product">product</option>
+            <option value="profile">profile</option>
+            <option value="video.movie">video.movie</option>
+          </select>
+        </div>
+        <div class="row2">
+          <div class="field"><label>imageWidth</label><input type="text" id="f-imgw" value="1200"/></div>
+          <div class="field"><label>imageHeight</label><input type="text" id="f-imgh" value="630"/></div>
+        </div>
+        <div class="field">
+          <label>imageAlt</label>
+          <input type="text" id="f-imgalt" placeholder="Describe the image"/>
+        </div>
+        <div class="field">
+          <label>locale</label>
+          <input type="text" id="f-locale" value="en_US"/>
+        </div>
+        <div class="field-group-label">Twitter / X</div>
+        <div class="field">
+          <label>twitterCard</label>
+          <select id="f-twcard">
+            <option value="summary_large_image" selected>summary_large_image</option>
+            <option value="summary">summary</option>
+            <option value="app">app</option>
+          </select>
+        </div>
+        <div class="row2">
+          <div class="field"><label>twitterSite</label><input type="text" id="f-twsite" placeholder="@yoursite"/></div>
+          <div class="field"><label>twitterCreator</label><input type="text" id="f-twcreator" placeholder="@author"/></div>
+        </div>
+        <div class="field-group-label">PWA</div>
+        <div class="row2">
+          <div class="field">
+            <label>PWA hints</label>
+            <select id="f-pwa"><option value="">Off</option><option value="true">On</option></select>
+          </div>
+          <div class="field"><label>appName</label><input type="text" id="f-appname" placeholder="My App"/></div>
+        </div>
+      </div>
+
+      <!-- Schema -->
+      <div class="tab-body" id="tab-schema">
+        <div class="field">
+          <label>schema type</label>
+          <select id="f-schema" onchange="onSchemaChange(this.value)">
+            <option value="">WebPage (default)</option>
+            <option value="article">Article</option>
+            <option value="product">Product</option>
+            <option value="breadcrumb">BreadcrumbList</option>
+          </select>
+        </div>
+
+        <div class="sub-fields" id="sf-article">
+          <div class="row2">
+            <div class="field"><label>datePublished</label><input type="text" id="f-dpub" placeholder="2024-01-15"/></div>
+            <div class="field"><label>dateModified</label><input type="text" id="f-dmod" placeholder="2024-06-01"/></div>
+          </div>
+          <div class="field"><label>publisher logo URL</label><input type="text" id="f-logo" placeholder="https://example.com/logo.png"/></div>
+        </div>
+
+        <div class="sub-fields" id="sf-product">
+          <div class="row2">
+            <div class="field"><label>price</label><input type="number" id="f-price" placeholder="29.99" step="0.01"/></div>
+            <div class="field"><label>currency</label><input type="text" id="f-currency" value="USD" maxlength="3"/></div>
+          </div>
+        </div>
+
+        <div class="sub-fields" id="sf-breadcrumb">
+          <div class="field">
+            <label>items (JSON array)</label>
+            <textarea id="f-breadcrumb" rows="6">[
+  {"name": "Home",       "url": "/"},
+  {"name": "Docs",       "url": "/docs"},
+  {"name": "Quickstart", "url": "/docs/quickstart"}
+]</textarea>
+          </div>
+        </div>
+      </div>
+    </div><!-- /left -->
+
+    <!-- Right: output ───────────────────────────────── -->
+    <div class="right">
+
+      <!-- Tags -->
+      <div class="out-body active" id="out-tags">
+        <div id="vitals-bar"></div>
+        <div id="alerts-list"></div>
+        <div id="tag-output"></div>
+      </div>
+
+      <!-- Preview -->
+      <div class="out-body" id="out-preview">
+        <div class="preview-group">
+          <div class="preview-label">Google Search</div>
+          <div class="g-card">
+            <div class="g-row">
+              <div class="g-icon">G</div>
+              <div class="g-domain" id="pg-domain">example.com</div>
+            </div>
+            <div class="g-title" id="pg-title">Page Title</div>
+            <div class="g-desc"  id="pg-desc">Description</div>
+          </div>
+        </div>
+        <div class="preview-group">
+          <div class="preview-label">X / Twitter Card</div>
+          <div class="tw-card">
+            <div class="tw-img" id="ptw-img">🖼</div>
+            <div class="tw-body">
+              <div class="tw-dom" id="ptw-dom">example.com</div>
+              <div class="tw-ttl" id="ptw-ttl">Title</div>
+              <div class="tw-dsc" id="ptw-dsc">Description</div>
+            </div>
+          </div>
+        </div>
+        <div class="preview-group">
+          <div class="preview-label">Facebook / Open Graph</div>
+          <div class="og-card">
+            <div class="og-img" id="pog-img">🖼</div>
+            <div class="og-body">
+              <div class="og-dom" id="pog-dom">example.com</div>
+              <div class="og-ttl" id="pog-ttl">Title</div>
+              <div class="og-dsc" id="pog-dsc">Description</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Code -->
+      <div class="out-body" id="out-code">
+        <div class="code-section">
+          <div class="code-section-label">Install</div>
+          <div class="code-wrap">
+            <button class="copy-btn" onclick="copyBlock('cb-install')">copy</button>
+            <div class="code-block" id="cb-install"><span class="cc"># npm</span>
+<span class="ck">npm</span> install stroma
+
+<span class="cc"># CDN</span>
+<span class="cm">&lt;</span><span class="ck">script</span> src=<span class="cs">"https://cdn.jsdelivr.net/npm/stroma/dist/stroma.min.js"</span><span class="cm">&gt;&lt;/</span><span class="ck">script</span><span class="cm">&gt;</span></div>
+          </div>
+        </div>
+        <div class="code-section">
+          <div class="code-section-label">Generated call — mirrors the fields above</div>
+          <div class="code-wrap">
+            <button class="copy-btn" onclick="copyBlock('cb-snippet')">copy</button>
+            <div class="code-block" id="cb-snippet"></div>
+          </div>
+        </div>
+        <div class="code-section">
+          <div class="code-section-label">SPA update — send only changed fields</div>
+          <div class="code-block"><span class="cc">// React Router / Vue Router — call on every route change</span>
+<span class="ci">Stroma</span><span class="cm">.</span><span class="cfn">update</span>({
+  <span class="cp">title</span><span class="cm">:</span>       <span class="cs">"New Page Title"</span><span class="cm">,</span>
+  <span class="cp">description</span><span class="cm">:</span> <span class="cs">"Description for this route."</span><span class="cm">,</span>
+  <span class="cp">url</span><span class="cm">:</span>         <span class="ci">window</span><span class="cm">.</span><span class="ci">location</span><span class="cm">.</span><span class="ci">href</span><span class="cm">,</span>
+})<span class="cm">;</span></div>
+        </div>
+        <div class="code-section">
+          <div class="code-section-label">SSR — returns HTML string, no DOM required</div>
+          <div class="code-block"><span class="cc">// Node.js / Express</span>
+<span class="ck">const</span> <span class="ci">headHtml</span> <span class="cm">=</span> <span class="ci">Stroma</span><span class="cm">.</span><span class="cfn">renderToString</span>({
+  <span class="cp">title</span><span class="cm">:</span>   <span class="ci">product</span><span class="cm">.</span>name<span class="cm">,</span>
+  <span class="cp">schema</span><span class="cm">:</span>  <span class="cs">'product'</span><span class="cm">,</span>
+  <span class="cp">price</span><span class="cm">:</span>   <span class="ci">product</span><span class="cm">.</span>price<span class="cm">,</span>
+})<span class="cm">;</span>
+res<span class="cm">.</span><span class="cfn">send</span>(<span class="cs">`&lt;html&gt;&lt;head&gt;${headHtml}&lt;/head&gt;&lt;body&gt;...`</span>)<span class="cm">;</span></div>
+        </div>
+        <div class="code-section">
+          <div class="code-section-label">Override defaults — set once at app startup</div>
+          <div class="code-block"><span class="ci">Stroma</span><span class="cm">.</span><span class="cfn">defaults</span>({
+  <span class="cp">maxTitleLength</span><span class="cm">:</span>       <span class="cs">70</span><span class="cm">,</span>  <span class="cc">// override the 60-char limit globally</span>
+  <span class="cp">maxDescriptionLength</span><span class="cm">:</span> <span class="cs">155</span><span class="cm">,</span>
+})<span class="cm">;</span></div>
+        </div>
+      </div>
+
+    </div><!-- /right -->
+  </div><!-- /workspace -->
+</div><!-- /app -->
+
+<!-- ════════ Stroma.js v1.1.0 (embedded build) ════════════════════════════════
+     Source is split across src/ — see stroma.js, stroma.d.ts, package.json.
+     This is the minified UMD bundle as it would appear in dist/stroma.umd.js.
+     ══════════════════════════════════════════════════════════════════════════ -->
+<script>
+(function(g,f){typeof exports==='object'&&typeof module!=='undefined'?module.exports=f():typeof define==='function'&&define.amd?define(f):(g.Stroma=f());}(typeof globalThis!=='undefined'?globalThis:this,function(){'use strict';
+var D={maxTitleLength:60,maxDescriptionLength:160,robots:'index, follow',ogType:'website',locale:'en_US',imageWidth:'1200',imageHeight:'630'};
+var A='data-stroma';
+var trunc=function(s,n){if(!s)return '';s=String(s).trim();return s.length>n?s.slice(0,n-1)+'\u2026':s;};
+var esc=function(s){return String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');};
+var abs=function(url,base){if(!url)return '';if(/^https?:\/\//i.test(url))return url;try{return new URL(url,base||(typeof window!=='undefined'?window.location.origin:'')).href;}catch(e){return url;}};
+var firstImg=function(){var i=document.querySelector('body img[src]');return i?abs(i.getAttribute('src')):'';}
+// DOM helpers
+var setMeta=function(a,v,c){if(!c)return;var e=document.querySelector('meta['+a+'="'+v+'"]');if(!e){e=document.createElement('meta');e.setAttribute(a,v);e.setAttribute(A,'');document.head.appendChild(e);}e.setAttribute('content',c);};
+var setTitle=function(t){if(!t)return;var e=document.querySelector('title');if(!e){e=document.createElement('title');e.setAttribute(A,'');document.head.appendChild(e);}e.textContent=t;};
+var setLink=function(r,h){if(!h)return;var e=document.querySelector('link[rel="'+r+'"]');if(!e){e=document.createElement('link');e.setAttribute('rel',r);e.setAttribute(A,'');document.head.appendChild(e);}e.setAttribute('href',h);};
+var setJld=function(d){var e=document.querySelector('script[type="application/ld+json"]['+A+']');if(!e){e=document.createElement('script');e.setAttribute('type','application/ld+json');e.setAttribute(A,'');document.head.appendChild(e);}e.textContent=JSON.stringify(d,null,2);};
+var cleanup=function(){document.querySelectorAll('['+A+']').forEach(function(e){e.remove();});};
+// SSR string helpers
+var sM=function(a,v,c){return c?'<meta '+a+'="'+esc(v)+'" content="'+esc(c)+'" '+A+'>\n':'';};
+var sL=function(r,h){return h?'<link rel="'+esc(r)+'" href="'+esc(h)+'" '+A+'>\n':'';};
+var sT=function(t){return t?'<title '+A+'>'+esc(t)+'</title>\n':'';};
+var sJ=function(d){return '<script type="application/ld+json" '+A+'>\n'+JSON.stringify(d,null,2)+'\n<\/script>\n';};
+// Schema builders — src/schema/*.js
+var wpS=function(c){var s={'@context':'https://schema.org','@type':c.schemaType||'WebPage',name:c.title,description:c.description,url:c.url};if(c.image)s.image=c.image;if(c.author)s.author={'@type':'Person',name:c.author};if(c.siteName)s.isPartOf={'@type':'WebSite',name:c.siteName};if(c.datePublished)s.datePublished=c.datePublished;if(c.dateModified)s.dateModified=c.dateModified;return s;};
+var artS=function(c){return{'@context':'https://schema.org','@type':'Article',headline:c.title,description:c.description,url:c.url,image:c.image||'',author:{'@type':'Person',name:c.author||'Unknown'},publisher:{'@type':'Organization',name:c.siteName||'',logo:{'@type':'ImageObject',url:c.logo||''}},datePublished:c.datePublished||'',dateModified:c.dateModified||c.datePublished||''};};
+var prodS=function(c){var s={'@context':'https://schema.org','@type':'Product',name:c.title,description:c.description,url:c.url};if(c.image)s.image=c.image;if(c.price!=null)s.offers={'@type':'Offer',price:c.price,priceCurrency:c.priceCurrency||'USD',availability:'https://schema.org/InStock'};return s;};
+var bcS=function(items){return{'@context':'https://schema.org','@type':'BreadcrumbList',itemListElement:items.map(function(x,i){return{'@type':'ListItem',position:i+1,name:x.name,item:abs(x.url)};})};};
+var pickS=function(c){switch(c.schema){case 'article':return artS(c);case 'product':return prodS(c);case 'breadcrumb':return c.breadcrumb?bcS(c.breadcrumb):wpS(c);default:return wpS(c);}};
+// resolve — src/config/resolve.js
+var resolve=function(inp){var c=Object.assign({},inp);var mT=c.maxTitleLength||D.maxTitleLength,mD=c.maxDescriptionLength||D.maxDescriptionLength;var isBrowser=typeof window!=='undefined';c.url=abs(c.url||(isBrowser?window.location.href:''));c.image=abs(c.image||(typeof document!=='undefined'?firstImg():''));c.titleFull=trunc(c.title,mT);c.descriptionFull=trunc(c.description,mD);c.twitterCard=c.twitterCard||(c.image?'summary_large_image':'summary');c.locale=c.locale||D.locale;c.robots=c.robots||D.robots;c.ogType=c.ogType||D.ogType;c.imageWidth=c.imageWidth||D.imageWidth;c.imageHeight=c.imageHeight||D.imageHeight;return c;};
+// describeTags — src/tags/describe.js — SINGLE SOURCE OF TRUTH
+var describe=function(c){var t=[],kw=c.keywords?(Array.isArray(c.keywords)?c.keywords.join(', '):c.keywords):null;
+t.push({fn:'title',a:[c.titleFull]});
+t.push({fn:'meta',a:['name','description',c.descriptionFull]});
+if(c.author)t.push({fn:'meta',a:['name','author',c.author]});
+if(kw)t.push({fn:'meta',a:['name','keywords',kw]});
+t.push({fn:'meta',a:['name','robots',c.robots]});
+if(c.themeColor)t.push({fn:'meta',a:['name','theme-color',c.themeColor]});
+t.push({fn:'link',a:['canonical',c.canonical||c.url]});
+t.push({fn:'meta',a:['property','og:title',c.titleFull]});
+t.push({fn:'meta',a:['property','og:description',c.descriptionFull]});
+t.push({fn:'meta',a:['property','og:url',c.url]});
+if(c.image){t.push({fn:'meta',a:['property','og:image',c.image]});t.push({fn:'meta',a:['property','og:image:width',c.imageWidth]});t.push({fn:'meta',a:['property','og:image:height',c.imageHeight]});t.push({fn:'meta',a:['property','og:image:alt',c.imageAlt||c.titleFull]});}
+t.push({fn:'meta',a:['property','og:type',c.ogType]});
+t.push({fn:'meta',a:['property','og:locale',c.locale]});
+if(c.siteName)t.push({fn:'meta',a:['property','og:site_name',c.siteName]});
+t.push({fn:'meta',a:['name','twitter:card',c.twitterCard]});
+t.push({fn:'meta',a:['name','twitter:title',c.titleFull]});
+t.push({fn:'meta',a:['name','twitter:description',c.descriptionFull]});
+if(c.image){t.push({fn:'meta',a:['name','twitter:image',c.image]});t.push({fn:'meta',a:['name','twitter:image:alt',c.imageAlt||c.titleFull]});}
+if(c.twitterSite)t.push({fn:'meta',a:['name','twitter:site',c.twitterSite]});
+if(c.twitterCreator)t.push({fn:'meta',a:['name','twitter:creator',c.twitterCreator]});
+if(c.author)t.push({fn:'meta',a:['property','article:author',c.author]});
+if(c.themeColor){t.push({fn:'meta',a:['name','msapplication-navbutton-color',c.themeColor]});t.push({fn:'meta',a:['name','apple-mobile-web-app-status-bar-style',c.themeColor]});}
+if(c.pwa){t.push({fn:'meta',a:['name','apple-mobile-web-app-capable','yes']});t.push({fn:'meta',a:['name','mobile-web-app-capable','yes']});t.push({fn:'meta',a:['name','apple-mobile-web-app-title',c.appName||c.titleFull]});if(c.image)t.push({fn:'link',a:['apple-touch-icon',c.image]});}
+t.push({fn:'jsonld',a:[pickS(c)]});
+return t;};
+// DOM writer — src/dom/writer.js
+var applyTags=function(c){describe(c).forEach(function(tag){switch(tag.fn){case 'title':setTitle(tag.a[0]);break;case 'meta':setMeta(tag.a[0],tag.a[1],tag.a[2]);break;case 'link':setLink(tag.a[0],tag.a[1]);break;case 'jsonld':setJld(tag.a[0]);break;}});};
+// SSR renderer — src/ssr/renderer.js
+var renderStr=function(c){return describe(c).map(function(tag){switch(tag.fn){case 'title':return sT(tag.a[0]);case 'meta':return sM(tag.a[0],tag.a[1],tag.a[2]);case 'link':return sL(tag.a[0],tag.a[1]);case 'jsonld':return sJ(tag.a[0]);default:return '';}}).join('');};
+// Public API — src/index.js
+return{
+  init:function(o){if(typeof document==='undefined')return this;cleanup();var c=resolve(o||{});applyTags(c);this._c=c;return this;},
+  update:function(p){return this.init(Object.assign({},this._c||{},p));},
+  reset:function(){if(typeof document!=='undefined')cleanup();this._c=null;return this;},
+  getConfig:function(){return Object.assign({},this._c);},
+  renderToString:function(o){return renderStr(resolve(o||{}));},
+  breadcrumb:function(items){if(typeof document!=='undefined')setJld(bcS(items));return this;},
+  defaults:function(p){if(!p)return Object.assign({},D);Object.assign(D,p);return this;},
+  version:'1.1.0',
+};
+}));
+</script>
+
+<!-- ════════ Canvas — slow-drifting cell background ═══════════════════════════ -->
+<script>
+(function(){
+  var cv=document.getElementById('bio-canvas'),ctx=cv.getContext('2d'),W,H,t=0;
+  var cells=Array.from({length:8},function(){
+    return{x:Math.random(),y:Math.random(),r:70+Math.random()*110,
+           vx:(Math.random()-.5)*.00007,vy:(Math.random()-.5)*.00007,
+           ph:Math.random()*Math.PI*2,sp:.0003+Math.random()*.0003};
+  });
+  function resize(){W=cv.width=window.innerWidth;H=cv.height=window.innerHeight;}
+  window.addEventListener('resize',resize);resize();
+  function draw(){
+    ctx.clearRect(0,0,W,H);t++;
+    cells.forEach(function(c){
+      c.x+=c.vx;c.y+=c.vy;
+      if(c.x<-.15)c.x=1.1;if(c.x>1.15)c.x=-.1;
+      if(c.y<-.15)c.y=1.1;if(c.y>1.15)c.y=-.1;
+      var cx=c.x*W,cy=c.y*H,pulse=1+Math.sin(t*c.sp+c.ph)*.07,r=c.r*pulse;
+      var g=ctx.createRadialGradient(cx,cy,0,cx,cy,r*1.5);
+      g.addColorStop(0,'rgba(72,210,140,.04)');g.addColorStop(1,'rgba(72,210,140,0)');
+      ctx.beginPath();ctx.arc(cx,cy,r*1.5,0,Math.PI*2);ctx.fillStyle=g;ctx.fill();
+      ctx.beginPath();ctx.arc(cx,cy,r,0,Math.PI*2);
+      ctx.strokeStyle='rgba(72,210,140,'+(0.055+Math.sin(t*c.sp+c.ph)*.025)+')';
+      ctx.lineWidth=1;ctx.stroke();
+      ctx.beginPath();ctx.arc(cx,cy,r*.6,0,Math.PI*2);
+      ctx.strokeStyle='rgba(72,210,140,.03)';ctx.lineWidth=.5;ctx.stroke();
+      ctx.beginPath();ctx.arc(cx+r*.05,cy-r*.05,r*.12,0,Math.PI*2);
+      ctx.fillStyle='rgba(72,210,140,.06)';ctx.fill();
+    });
+    requestAnimationFrame(draw);
+  }
+  draw();
+})();
+</script>
+
+<!-- ════════ Demo logic ════════════════════════════════════════════════════════
+     Organised as pure functions — each does exactly one job.
+     ══════════════════════════════════════════════════════════════════════════ -->
+<script>
+'use strict';
+
+/* ── Tab switching ────────────────────────────────────────────────────────── */
+function initTabs(tabSelector, bodyPrefix) {
+  document.querySelectorAll(tabSelector).forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      document.querySelectorAll(tabSelector).forEach(function(t){ t.classList.remove('active'); });
+      document.querySelectorAll('[id^="' + bodyPrefix + '"]').forEach(function(t){ t.classList.remove('active'); });
+      btn.classList.add('active');
+      document.getElementById(bodyPrefix + btn.dataset[bodyPrefix === 'tab-' ? 'tab' : 'out']).classList.add('active');
+    });
+  });
+}
+initTabs('.in-tab',  'tab-');
+initTabs('.out-tab', 'out-');
+
+/* ── Schema conditional sub-fields ───────────────────────────────────────── */
+function onSchemaChange(v) {
+  ['sf-article', 'sf-product', 'sf-breadcrumb'].forEach(function(id) {
+    document.getElementById(id).classList.remove('visible');
+  });
+  if (v === 'article')    document.getElementById('sf-article').classList.add('visible');
+  if (v === 'product')    document.getElementById('sf-product').classList.add('visible');
+  if (v === 'breadcrumb') document.getElementById('sf-breadcrumb').classList.add('visible');
+}
+
+/* ── Character counters ───────────────────────────────────────────────────── */
+function updateCC(inputId, hintId, max) {
+  var el = document.getElementById(inputId);
+  var cc = document.getElementById(hintId);
+  if (!el || !cc) return;
+  var n = el.value.length;
+  cc.textContent = n + ' / ' + max;
+  cc.className = 'char-hint ' + (n > max ? 'over' : n > max * .85 ? 'warn' : 'ok');
+}
+
+/* ── Form → config object ─────────────────────────────────────────────────── */
+function collectCfg() {
+  var val = function(id) { return (document.getElementById(id) || {value:''}).value.trim(); };
+  var cfg = {
+    title:          val('f-title'),
+    description:    val('f-desc'),
+    url:            val('f-url') || location.href,
+    image:          val('f-image'),
+    author:         val('f-author'),
+    themeColor:     val('f-theme'),
+    keywords:       val('f-kw'),
+    siteName:       val('f-site'),
+    robots:         val('f-robots'),
+    locale:         val('f-locale') || 'en_US',
+    ogType:         val('f-ogtype'),
+    imageWidth:     val('f-imgw') || '1200',
+    imageHeight:    val('f-imgh') || '630',
+    imageAlt:       val('f-imgalt'),
+    twitterCard:    val('f-twcard'),
+    twitterSite:    val('f-twsite'),
+    twitterCreator: val('f-twcreator'),
+    pwa:            val('f-pwa') === 'true',
+    appName:        val('f-appname'),
+    schema:         val('f-schema'),
+    datePublished:  val('f-dpub'),
+    dateModified:   val('f-dmod'),
+    logo:           val('f-logo'),
+    price:          val('f-price') ? parseFloat(val('f-price')) : undefined,
+    priceCurrency:  val('f-currency') || 'USD',
+  };
+  if (cfg.schema === 'breadcrumb') {
+    try { cfg.breadcrumb = JSON.parse(document.getElementById('f-breadcrumb').value); }
+    catch (_) { cfg.breadcrumb = []; }
+  }
+  return cfg;
+}
+
+/* ── HTML escape (display only) ──────────────────────────────────────────── */
+var esc = function(s) {
+  return String(s == null ? '' : s)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+};
+
+/* ── Read what Stroma actually injected into <head> ───────────────────────── */
+var getMeta = function(attr, val) {
+  var el = document.querySelector('meta[' + attr + '="' + val + '"]');
+  return el ? el.getAttribute('content') : '';
+};
+var getLink = function(rel) {
+  var el = document.querySelector('link[rel="' + rel + '"]');
+  return el ? el.getAttribute('href') : '';
+};
+
+/* ── Single tag-row template ─────────────────────────────────────────────── */
+function tagRow(key, cls, val) {
+  if (!val) return '';
+  return '<div class="tag-row">'
+    + '<div class="tag-k ' + cls + '">' + esc(key) + '</div>'
+    + '<div class="tag-v">' + esc(val) + '</div>'
+    + '</div>';
+}
+
+/* ── JSON-LD syntax highlighter ──────────────────────────────────────────── */
+function colorizeJld(raw) {
+  return esc(raw)
+    .replace(/&quot;([^&]+)&quot;(\s*:)/g, '<span class="jk">"$1"</span>$2')
+    .replace(/:\s*&quot;([^&]*)&quot;/g,   ': <span class="jv">"$1"</span>')
+    .replace(/:\s*(\d+\.?\d*)/g,           ': <span class="jn">$1</span>');
+}
+
+/* ── Render: Tags tab ────────────────────────────────────────────────────── */
+function renderTagsPanel(cfg) {
+  var res = Stroma.getConfig();
+  var injected = document.querySelectorAll('[data-stroma]').length;
+
+  // SEO score
+  var score = 0;
+  if (cfg.title)                  score += 20;
+  if (cfg.description)            score += 20;
+  if (cfg.image)                  score += 20;
+  if (cfg.author || cfg.siteName) score += 15;
+  if (cfg.keywords)               score += 10;
+  if (cfg.schema)                 score += 15;
+  var scoreColor = score >= 80 ? 'var(--acc)' : score >= 50 ? 'var(--amber)' : 'var(--red)';
+
+  document.getElementById('vitals-bar').innerHTML =
+    '<div class="vitals">'
+    + '<div class="vital"><span class="vdot" style="background:var(--sky)"></span>' + injected + ' tags injected</div>'
+    + '<div class="vital"><span class="vdot" style="background:var(--acc)"></span>JSON-LD ✓</div>'
+    + '<div class="vital"><span class="vdot" style="background:var(--rose)"></span>Open Graph ✓</div>'
+    + '<div class="vital"><span class="vdot" style="background:var(--sky)"></span>Twitter Card ✓</div>'
+    + '<div class="score" style="border-color:' + scoreColor + ';color:' + scoreColor + '">' + score + '</div>'
+    + '</div>';
+
+  // Alerts
+  var warns = [];
+  if (!cfg.title)                     warns.push({cls:'err',  msg:'title is required'});
+  if (!cfg.description)               warns.push({cls:'err',  msg:'description is required'});
+  if (cfg.title    && cfg.title.length    > 60)  warns.push({cls:'warn', msg:'Title truncated to 60 chars (was ' + cfg.title.length + ')'});
+  if (cfg.description && cfg.description.length > 160) warns.push({cls:'warn', msg:'Description truncated to 160 chars (was ' + cfg.description.length + ')'});
+  if (cfg.image && !/^https/.test(cfg.image))    warns.push({cls:'warn', msg:'Image URL should use https://'});
+  if (!cfg.image)                     warns.push({cls:'warn', msg:'No image — OG and Twitter card previews will degrade'});
+  if (!warns.length)                  warns.push({cls:'ok',   msg:'All tags look good ✓'});
+
+  document.getElementById('alerts-list').innerHTML =
+    '<div class="alerts">' + warns.map(function(w){ return '<div class="alert ' + w.cls + '">' + esc(w.msg) + '</div>'; }).join('') + '</div>';
+
+  // Tag rows — read from document.head (what Stroma actually wrote)
+  var jldEl  = document.querySelector('script[type="application/ld+json"][data-stroma]');
+  var jldStr = jldEl ? jldEl.textContent : '{}';
+
+  document.getElementById('tag-output').innerHTML = ''
+    + '<div class="stratum"><div class="stratum-label">Core</div>'
+    + tagRow('<title>',     'basic', document.title)
+    + tagRow('description', 'basic', getMeta('name','description'))
+    + (getMeta('name','author')     ? tagRow('author',      'basic', getMeta('name','author'))     : '')
+    + (getMeta('name','keywords')   ? tagRow('keywords',    'basic', getMeta('name','keywords'))   : '')
+    + tagRow('robots',      'basic', getMeta('name','robots'))
+    + (getMeta('name','theme-color')? tagRow('theme-color', 'basic', getMeta('name','theme-color')): '')
+    + tagRow('canonical',   'basic', getLink('canonical'))
+    + '</div>'
+    + '<div class="stratum"><div class="stratum-label">Open Graph</div>'
+    + tagRow('og:title',       'og', getMeta('property','og:title'))
+    + tagRow('og:description', 'og', getMeta('property','og:description'))
+    + tagRow('og:url',         'og', getMeta('property','og:url'))
+    + (getMeta('property','og:image')       ? tagRow('og:image',        'og', getMeta('property','og:image'))       : '')
+    + (getMeta('property','og:image:width') ? tagRow('og:image:width',  'og', getMeta('property','og:image:width')) : '')
+    + (getMeta('property','og:image:height')? tagRow('og:image:height', 'og', getMeta('property','og:image:height')): '')
+    + tagRow('og:type',   'og', getMeta('property','og:type'))
+    + tagRow('og:locale', 'og', getMeta('property','og:locale'))
+    + (getMeta('property','og:site_name') ? tagRow('og:site_name','og', getMeta('property','og:site_name')) : '')
+    + '</div>'
+    + '<div class="stratum"><div class="stratum-label">Twitter Card</div>'
+    + tagRow('twitter:card',        'tw', getMeta('name','twitter:card'))
+    + tagRow('twitter:title',       'tw', getMeta('name','twitter:title'))
+    + tagRow('twitter:description', 'tw', getMeta('name','twitter:description'))
+    + (getMeta('name','twitter:image')   ? tagRow('twitter:image',   'tw', getMeta('name','twitter:image'))   : '')
+    + (getMeta('name','twitter:site')    ? tagRow('twitter:site',    'tw', getMeta('name','twitter:site'))    : '')
+    + (getMeta('name','twitter:creator') ? tagRow('twitter:creator', 'tw', getMeta('name','twitter:creator')) : '')
+    + '</div>'
+    + (res.pwa ? '<div class="stratum"><div class="stratum-label">PWA</div>'
+        + tagRow('apple-mobile-web-app-capable', 'basic', getMeta('name','apple-mobile-web-app-capable'))
+        + tagRow('mobile-web-app-capable',       'basic', getMeta('name','mobile-web-app-capable'))
+        + tagRow('apple-mobile-web-app-title',   'basic', getMeta('name','apple-mobile-web-app-title'))
+        + '</div>' : '')
+    + '<div class="stratum"><div class="stratum-label">JSON-LD · application/ld+json</div>'
+    + '<div class="jld-pre">' + colorizeJld(jldStr) + '</div>'
+    + '</div>';
+}
+
+/* ── Render: Preview tab ─────────────────────────────────────────────────── */
+function renderPreviewPanel(cfg) {
+  var res    = Stroma.getConfig();
+  var title  = res.titleFull  || cfg.title       || 'Page Title';
+  var desc   = res.descriptionFull || cfg.description || 'Description';
+  var domain = cfg.url || location.href;
+  try { domain = new URL(domain).hostname; } catch(_) {}
+
+  document.getElementById('pg-domain').textContent = domain;
+  document.getElementById('pg-title').textContent  = title;
+  document.getElementById('pg-desc').textContent   = desc;
+
+  document.getElementById('ptw-dom').textContent = domain;
+  document.getElementById('ptw-ttl').textContent = title;
+  document.getElementById('ptw-dsc').textContent = desc;
+
+  document.getElementById('pog-dom').textContent = domain;
+  document.getElementById('pog-ttl').textContent = title;
+  document.getElementById('pog-dsc').textContent = desc;
+
+  function setCardImage(id, fallback) {
+    var el = document.getElementById(id);
+    if (cfg.image && /^https?/.test(cfg.image)) {
+      el.style.backgroundImage    = 'url(' + cfg.image + ')';
+      el.style.backgroundSize     = 'cover';
+      el.style.backgroundPosition = 'center';
+      el.textContent = '';
+    } else {
+      el.style.backgroundImage = fallback;
+      el.textContent = '🖼';
+    }
+  }
+  setCardImage('ptw-img', 'linear-gradient(135deg,#1da1f2,#0d4d8f)');
+  setCardImage('pog-img', 'linear-gradient(135deg,#4267b2,#6d84b4)');
+}
+
+/* ── Render: Code tab (generated snippet only; static examples stay in HTML) */
+function renderCodePanel(cfg) {
+  var lines = [];
+  var add = function(k, v) {
+    if (v === undefined || v === null || v === '' || v === false) return;
+    var rendered = typeof v === 'boolean'
+      ? '<span class="ck">' + v + '</span>'
+      : '<span class="cs">"' + esc(String(v).replace(/\\/g,'\\\\').replace(/"/g,'\\"')) + '"</span>';
+    lines.push('  <span class="cp">' + esc(k) + '</span><span class="cm">:</span> ' + rendered + '<span class="cm">,</span>');
+  };
+
+  add('title',       cfg.title);
+  add('description', cfg.description);
+  add('url',         cfg.url !== location.href ? cfg.url : '');
+  add('image',       cfg.image);
+  add('author',      cfg.author);
+  add('themeColor',  cfg.themeColor);
+  add('siteName',    cfg.siteName);
+  add('keywords',    cfg.keywords);
+  add('schema',      cfg.schema);
+  if (cfg.pwa) add('pwa', true);
+
+  document.getElementById('cb-snippet').innerHTML =
+    '<span class="ck">import</span> <span class="ci">Stroma</span> <span class="ck">from</span> <span class="cs">\'stroma\'</span><span class="cm">;</span>\n\n'
+    + '<span class="ci">Stroma</span><span class="cm">.</span><span class="cfn">init</span>({\n'
+    + lines.join('\n') + '\n'
+    + '})<span class="cm">;</span>';
+}
+
+/* ── Master update — calls Stroma.init() then re-renders all panels ───────── */
+function update() {
+  updateCC('f-title', 'cc-title', 60);
+  updateCC('f-desc',  'cc-desc',  160);
+  var cfg = collectCfg();
+  Stroma.init(cfg);          // writes to this page's own <head>
+  renderTagsPanel(cfg);
+  renderPreviewPanel(cfg);
+  renderCodePanel(cfg);
+}
+
+/* ── Debounce ────────────────────────────────────────────────────────────── */
+var debTimer;
+document.querySelectorAll('input, textarea, select').forEach(function(el) {
+  el.addEventListener('input',  function(){ clearTimeout(debTimer); debTimer = setTimeout(update, 200); });
+  el.addEventListener('change', function(){ clearTimeout(debTimer); debTimer = setTimeout(update, 200); });
+});
+
+/* ── Copy to clipboard ───────────────────────────────────────────────────── */
+function copyBlock(id) {
+  var text = document.getElementById(id).innerText;
+  navigator.clipboard.writeText(text).then(function() {
+    var btn = document.getElementById(id).previousElementSibling;
+    var orig = btn.textContent;
+    btn.textContent = 'copied';
+    btn.style.color = 'var(--acc)';
+    setTimeout(function(){ btn.textContent = orig; btn.style.color = ''; }, 1800);
+  });
+}
+
+/* ── Boot ────────────────────────────────────────────────────────────────── */
+update();
+</script>
+</body>
+</html>
