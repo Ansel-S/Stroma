@@ -1,6 +1,6 @@
 {
   "name": "stroma",
-  "version": "1.1.0",
+  "version": "1.0.0",
   "description": "Lightweight, framework-agnostic SEO meta tag generator. One call covers <title>, Open Graph, Twitter Card, JSON-LD, and PWA hints.",
   "keywords": [
     "seo", "meta", "meta-tags", "open-graph", "twitter-card", "json-ld", "structured-data", "spa", "ssr"
